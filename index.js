@@ -1,12 +1,16 @@
 const express = require("express");
 const morgan = require("morgan");
+require("dotenv").config();
+
 const app = express();
 app.use(express.json());
-app.use(express.static('dist'))
+app.use(express.static("dist"));
+
+const Phonebook = require("./models/phonebook.js");
 
 morgan.token("req-body", function (req, res) {
   if (!req.body) return "";
-  return JSON.stringify(req.body)
+  return JSON.stringify(req.body);
 });
 
 app.use(
@@ -15,58 +19,45 @@ app.use(
   )
 );
 
-let persons = [
-  {
-    name: "Arto Hellas",
-    number: "040-123456",
-    id: 1,
-  },
-  {
-    name: "Ada Lovelace",
-    number: "39-44-5323523",
-    id: 2,
-  },
-  {
-    name: "Dan Abramov",
-    number: "12-43-234345",
-    id: 3,
-  },
-  {
-    name: "Mary Poppendieck",
-    number: "39-23-6423122",
-    id: 4,
-  },
-];
-
 app.get("/info", (request, response) => {
-  response.send(`
-        <p>Phonebook has info for ${persons.length} people.</p>
+  Phonebook.countDocuments({}).then((res) => {
+    response.send(`
+        <p>Phonebook has info for ${res} people.</p>
         <p>${new Date()}</p>
     `);
+  });
 });
 
 app.get("/api/persons", (request, response) => {
-  response.json(persons);
+  Phonebook.find({}).then((res) => {
+    console.log("phonebook:");
+    response.send(res);
+  });
 });
 
 app.get("/api/persons/:id", (request, response) => {
   const { id } = request.params;
 
-  const person = persons.find((item) => item.id === id);
-
-  if (!person) return response.status(404).end();
-
-  response.json(person);
+  Phonebook.findById(id).then((res) => {
+    if (!res) {
+      response.status(404).send({
+        error: "Not Found",
+      });
+    } else response.json(res);
+  });
 });
 
 app.delete("/api/persons/:id", (request, response) => {
   const { id } = request.params;
 
-  
-  const person = persons.find((item) => item.id == id);
-  if (!person) return response.status(404).end();
-  persons = persons.filter((item) => item.id != id);  
-  response.status(202).end(0);
+  Phonebook.deleteOne({ _id: id }).then((res) => {
+    if (!res.deletedCount) {
+      response.status(404).send({
+        error: "Not Found",
+      });
+    }
+    response.status(202).end(0);
+  });
 });
 
 app.post("/api/persons", (request, response) => {
@@ -77,23 +68,17 @@ app.post("/api/persons", (request, response) => {
       error: "name or number are missed",
     });
 
-  if (persons.some((item) => item.name === name))
-    response.status(400).send({
-      error: "name must be unique",
-    });
-
-  const id = Math.floor(1000 + Math.random() * 9000);
-  const payload = {
-    id,
+  const person = new Phonebook({
     name,
     number,
-  };
-  persons.push(payload);
+  });
 
-  response.json(payload);
+  person.save().then((result) => {
+    response.json(result);
+  });
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
